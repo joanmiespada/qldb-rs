@@ -9,6 +9,7 @@ use rusoto_qldb_session::QldbSessionClient;
 use std::future::Future;
 use std::sync::Arc;
 
+use std::env;
 /// It allows to start transactions. In QLDB all queries are transactions.
 /// So you always need to create a transaction for every query.
 ///
@@ -41,7 +42,19 @@ impl QldbClient {
     /// variable. If that is malformed of absent it will fall back on Region::UsEast1
     #[cfg(feature = "internal_pool_with_thread")]
     pub async fn default(ledger_name: &str, max_sessions: u16) -> QldbResult<QldbClient> {
-        let region = Region::default();
+        let region;
+        if let Ok(aws_region) = env::var("AWS_REGION") {
+            if let Ok(aws_endpoint) = env::var("AWS_ENDPOINT") {
+                region = Region::Custom {
+                    name: aws_region.to_owned(),
+                    endpoint: aws_endpoint.to_owned(),
+                };
+            } else {
+                panic!("no endpoint was set up at AWS_ENDPOINT env var")
+            };
+        } else {
+            region = Region::default();
+        }
 
         let credentials = ChainProvider::default();
 
@@ -58,29 +71,29 @@ impl QldbClient {
             session_pool,
         })
     }
-    
-    #[cfg(feature = "internal_pool_with_thread")]
-    pub async fn default_with_custom_endpoint(ledger_name: &str, max_sessions: u16, region:String, endpoint:String  ) -> QldbResult<QldbClient> {
-        let region = Region::Custom{
-            name: region.to_owned(),
-            endpoint: endpoint.to_owned()
-        };
 
-        let credentials = ChainProvider::default();
+    // #[cfg(feature = "internal_pool_with_thread")]
+    // pub async fn default_with_custom_endpoint(ledger_name: &str, max_sessions: u16, region:String, endpoint:String  ) -> QldbResult<QldbClient> {
+    //     let region = Region::Custom{
+    //         name: region.to_owned(),
+    //         endpoint: endpoint.to_owned()
+    //     };
 
-        // TODO: Map error correctly
-        let http_client = HttpClient::new()?;
+    //     let credentials = ChainProvider::default();
 
-        let client = Arc::new(QldbSessionClient::new_with(http_client, credentials, region));
+    //     // TODO: Map error correctly
+    //     let http_client = HttpClient::new()?;
 
-        let session_pool = Arc::new(ThreadedSessionPool::new(client.clone(), ledger_name, max_sessions));
+    //     let client = Arc::new(QldbSessionClient::new_with(http_client, credentials, region));
 
-        Ok(QldbClient {
-            client,
-            _ledger_name: ledger_name.to_string(),
-            session_pool,
-        })
-    }
+    //     let session_pool = Arc::new(ThreadedSessionPool::new(client.clone(), ledger_name, max_sessions));
+
+    //     Ok(QldbClient {
+    //         client,
+    //         _ledger_name: ledger_name.to_string(),
+    //         session_pool,
+    //     })
+    // }
 
     /// Creates a new QldbClient.
     ///
