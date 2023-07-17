@@ -58,6 +58,29 @@ impl QldbClient {
             session_pool,
         })
     }
+    
+    #[cfg(feature = "internal_pool_with_thread")]
+    pub async fn default_with_custom_endpoint(ledger_name: &str, max_sessions: u16, region:String, endpoint:String  ) -> QldbResult<QldbClient> {
+        let region = Region::Custom{
+            name: region,
+            endpoint: endpoint
+        };
+
+        let credentials = ChainProvider::default();
+
+        // TODO: Map error correctly
+        let http_client = HttpClient::new()?;
+
+        let client = Arc::new(QldbSessionClient::new_with(http_client, credentials, region));
+
+        let session_pool = Arc::new(ThreadedSessionPool::new(client.clone(), ledger_name, max_sessions));
+
+        Ok(QldbClient {
+            client,
+            _ledger_name: ledger_name.to_string(),
+            session_pool,
+        })
+    }
 
     /// Creates a new QldbClient.
     ///
